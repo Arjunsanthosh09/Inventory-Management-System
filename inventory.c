@@ -9,24 +9,25 @@ void salesMenu();
 
 // sub functions of main menu
 
-void addItem();
+void addItem(); //done [done the logic for that there should be not duplicated item code or item name should be added ]
 void editItem();
 void deleteItem();
-void viewItem();
+void viewItem(); //done 
 
-void addPurchaseItem();
+void addPurchaseItem(); //done [ logic also done the item quantity updating and also checking the product code and also checking the purchase number is duplicated or not ]
 void editPurchaseItem();
 void deletePurchaseItem();
-void viewPurchaseItem();
+void viewPurchaseItem(); //done
 
 void addSalesItem();
 void editSalesItem();
 void deleteSalesItem();
-void viewSalesItem();
+void viewSalesItem(); 
 
 int checkProductCode(int p_code);
 int CheckitemcodeName(int item_code,char item_name[]);
 int updateStock(int quantity, int p_code);
+int CheckPurchaseNumber(int p_no);
 
 struct itemfile{
     int item_code;                   //Item Code
@@ -168,6 +169,7 @@ void purchaseMenu(){
     {
         case 1:
             printf("\n -------------- Add New Purchase Item --------------");
+            addPurchaseItem();
             break;
         case 2:
             printf("\n -------------- Edit Purchase Item --------------");
@@ -177,6 +179,7 @@ void purchaseMenu(){
             break;
         case 4:
             printf("\n -------------- View Purchase Items --------------");
+            viewPurchaseItem();
             break;
         case 5:
             printf("\n Returning to Main Menu...");
@@ -203,7 +206,7 @@ void salesMenu(){
     {
         case 1:
             printf("\n -------------- Add New Sale's Item --------------");
-            addItem();
+            addSalesItem();
             break;
         case 2:
             printf("\n -------------- Edit Sale's Item --------------");
@@ -257,26 +260,6 @@ void addItem() {
     fclose(fp);
 }
 
-// we must ensure that no duplicated item code or item name should be added to the file so that it should be more reliable
-
-int CheckitemcodeName(int item_code, char item_name[]) {
-    FILE *fp;
-    struct itemfile item;
-    int found = 0;
-    fp = fopen("itemfile.dat", "rb");
-    if (fp == NULL) {
-        printf("\n Error opening the file..");
-        return 0;
-    }
-    while (fread(&item, sizeof(item), 1, fp)) {
-        if (item.item_code == item_code || strcmp(item.item_name, item_name) == 0) {
-            found = 1;
-            break;
-        }
-    }
-    fclose(fp);
-    return found;
-}
 
 void viewItem(){
     FILE *fp;
@@ -319,15 +302,20 @@ void addPurchaseItem(){
         printf("\n Error opening the file..");
         return;
     }
-
     printf("\n Enter the Purchase Number:");
     scanf("%d",&pur.p_no);
-    printf("\n Enter the purchase date:");
+    if (CheckPurchaseNumber(pur.p_no==0))
+    {
+        printf("\n ERROR: Purchase Number already exists!");
+        fclose(fp);
+        return;
+    }
+    printf("\n Enter the purchase date (in DD-MM-YYYY):");
     scanf("%s",pur.p_date);
     printf("\n Enter the Client Code:");
     scanf("%d",&pur.c_code);
     printf("\n Enter the client Name:");
-    scanf("%s",pur.c_name);
+    scanf(" %[^\n]", pur.c_name);
     printf("\n Enter the Product Quantity:");
     scanf("%d",&pur.p_qty);
     printf("\n Enter the product Price:");
@@ -343,6 +331,41 @@ void addPurchaseItem(){
         printf("\n Warning: Stock update failed.\n");
     }
 }
+
+void viewPurchaseItem() {
+    FILE *fp;
+    struct purchasefile pur;
+
+    fp = fopen("purchasefile.dat", "rb");
+    if (fp == NULL) {
+        printf("\n Error opening the file..\n");
+        return;
+    }
+
+    printf("\n------------------ Purchase Item List ------------------\n");
+
+    printf("\n%-15s %-15s %-15s %-20s %-15s %-10s %-12s %-12s\n",
+           "Purchase No", "Purchase Date", "Client Code", "Client Name",
+           "Product Code", "Quantity", "Price", "Amount");
+
+    printf("---------------------------------------------------------------------------------------------------------------\n");
+
+    while (fread(&pur, sizeof(pur), 1, fp)) {
+
+        printf("%-15d %-15s %-15d %-20s %-15d %-10d %-12.2f %-12.2f\n",
+               pur.p_no,
+               pur.p_date,
+               pur.c_code,
+               pur.c_name,
+               pur.p_code,
+               pur.p_qty,
+               pur.p_price,
+               pur.p_amt);
+    }
+
+    fclose(fp);
+}
+
 
 //sub function definitions of sales file menu
 
@@ -371,6 +394,13 @@ void addSalesItem(){
     printf("\n Sales Item added successfully!");
     fclose(fp);
 }
+
+
+
+
+//***************************************************************************************************************************** */
+
+
 
 //sub function of addPurchaseItem()
 
@@ -422,3 +452,45 @@ int updateStock(int quantity, int p_code){
 }
 
 
+// we must ensure that no duplicated item code or item name should be added to the file so that it should be more reliable
+
+int CheckitemcodeName(int item_code, char item_name[]) {
+    FILE *fp;
+    struct itemfile item;
+    int found = 0;
+    fp = fopen("itemfile.dat", "rb");
+    if (fp == NULL) {
+        printf("\n Error opening the file..");
+        return 0;
+    }
+    while (fread(&item, sizeof(item), 1, fp)) {
+        if (item.item_code == item_code || strcmp(item.item_name, item_name) == 0) {
+            found = 1;
+            break;
+        }
+    }
+    fclose(fp);
+    return found;
+}
+
+
+int CheckPurchaseNumber(int p_no){
+    FILE *fp;
+    struct purchasefile pur;
+    int found=0;
+    fp=fopen("purchasefile.dat","rb");
+    if (fp==NULL){
+        printf("\n Error opening the file..");
+        return 0;
+    }
+    while (fread(&pur,sizeof(pur),1,fp)){
+        if (pur.p_no==p_no){
+            found=1;
+            break;
+        }
+    }
+    fclose(fp);
+    return found;
+}
+
+//************************************************************************************************************************************************* */
