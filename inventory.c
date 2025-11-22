@@ -19,7 +19,7 @@ void viewItem(); //done
 //sub functions of purchase file menu
 
 void addPurchaseItem(); //done [ logic also done the item quantity updating and also checking the product code and also checking the purchase number is duplicated or not ]
-void editPurchaseItem();
+void editPurchaseItem();//done 
 void deletePurchaseItem();
 void viewPurchaseItem(); //done
 
@@ -426,6 +426,40 @@ void addPurchaseItem(){
     }
 }
 
+void editPurchaseItem(){
+    FILE *fp;
+    fp=fopen("purchasefile.dat","rb+");
+    if(fp==NULL){
+        printf("\n Error opening the file....");
+        return;
+    }
+    struct purchasefile pur;
+    int purchase_no,foun=0;
+    printf("\n Enter the purchase number to edit:");
+    scanf("%d",&purchase_no);
+    while (fread(&pur,sizeof(pur),1,fp)){
+        if (pur.p_no==purchase_no){
+            foun=1;
+            printf("\n Enter the new Purchase Date (DD-MM-YYYY):");
+            scanf("%s",pur.p_date);
+            printf("\n Enter the new Client Code:");
+            scanf("%d",&pur.c_code);
+            printf("\n Enter the new Client Name:");
+            scanf(" %[^\n]", pur.c_name);
+            printf("\n Enter the new Product Quantity:");
+            scanf("%d",&pur.p_qty);
+            printf("\n Enter the new Product Price:");
+            scanf("%f",&pur.p_price);
+            pur.p_amt = pur.p_qty * pur.p_price;
+            fseek(fp,-sizeof(pur),SEEK_CUR);
+            fwrite(&pur,sizeof(pur),1,fp);
+            printf("\n Purchase Item updated successfully!");
+            break;
+        }
+    }
+    
+}
+
 void viewPurchaseItem() {
     FILE *fp;
     struct purchasefile pur;
@@ -541,7 +575,6 @@ void viewSalesItem() {
 
     fclose(fp);
 }
-
 
 //***************************************************************************************************************************** */
 
@@ -716,6 +749,4 @@ void UpdateStockAfterSale(int p_code, int qty){
 
     fclose(fp);
 }
-
-
 //************************************************************************************************************************************************* */
