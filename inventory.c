@@ -3,6 +3,7 @@
 #include<string.h>
 
 // oroo filesinte menu aanu ethuu
+
 void itemMenu();
 void purchaseMenu();
 void salesMenu();
@@ -20,14 +21,14 @@ void viewItem(); //done
 
 void addPurchaseItem(); //done [ logic also done the item quantity updating and also checking the product code and also checking the purchase number is duplicated or not ]
 void editPurchaseItem();//done 
-void deletePurchaseItem();
+void deletePurchaseItem();  //done [logic also done the stock updating after deleting the purchase item ]
 void viewPurchaseItem(); //done
 
 // sub functions of sales file menu
 
 void addSalesItem(); //done [ logic also done the checking of duplicated bill number ]
-void editSalesItem();
-void deleteSalesItem();
+void editSalesItem();//done  [ logic also done the stock updating after editing the sales item ]
+void deleteSalesItem(); //done  [ logic also done the stock updating after deleting the sales item ]
 void viewSalesItem(); //done
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -35,13 +36,13 @@ void viewSalesItem(); //done
 
 int checkProductCode(int p_code); //for checking the product code is already available in the itemfile or not
 int CheckitemcodeName(int item_code,char item_name[]); // For checking the item code and item name is already in the item name or not 
-int updateStock(int quantity, int p_code); // after purchasing item the stock should be updated in the itemfile
+int updateStock(int p_code, int quantity); // after purchasing item the stock should be updated in the itemfile
 int CheckPurchaseNumber(int p_no); // to check where the purchase number is already present in the purchase file or not
 int CheckBillNumber(int b_no); // to check  whether the bill number  is already present in the sales fieles or not 
 int RetrievePrice(int p_code, float *price); // to retrieve the price from itemfile based on product code
 int CheckProductQuantity(int p_code, int quantity); // to check whether the available stock is sufficient for selling or not
-void UpdateStockAfterSale(int p_code, int qty); // to update the stock after selling the item
-//--------------------------------------------------------------------------------------------------------------------------------------------------/
+int updateItemPrice(int p_code, float new_price); // to update item price in itemfile when needed
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------/
 // structure definitions for three files 
 
 struct itemfile{
@@ -82,9 +83,9 @@ int main(){
     struct salesfile sales;                       //salesfile variable
     int choice;
     while (1){
-         printf("\n\n----------------------------------------------------------------\n");
+         printf("\n\n------------------------------------------------------------------------------------------------------\n");
          printf("        Welcome to Inventory Management System        ");
-         printf("\n----------------------------------------------------------------\n");
+         printf("\n--------------------------------------------------------------------------------------------------------\n");
 
          printf("*******************************************\n");
          printf("               Main Menu               \n");
@@ -191,9 +192,11 @@ void purchaseMenu(){
             break;
         case 2:
             printf("\n -------------- Edit Purchase Item --------------");
+            editPurchaseItem();
             break;
         case 3:
             printf("\n -------------- Delete Purchase Items --------------");
+            deletePurchaseItem(); 
             break;
         case 4:
             printf("\n -------------- View Purchase Items --------------");
@@ -220,17 +223,18 @@ void salesMenu(){
     printf("\n Enter your choice : ");
     scanf("%d",&choice);
 
-    switch (choice)
-    {
+    switch (choice){
         case 1:
             printf("\n -------------- Add New Sale's Item --------------");
             addSalesItem();
             break;
         case 2:
             printf("\n -------------- Edit Sale's Item --------------");
+            editSalesItem();
             break;
         case 3:
             printf("\n -------------- Delete Sale's Items --------------");
+            deleteSalesItem();
             break;
         case 4:
             printf("\n -------------- View Sale's Items --------------");
@@ -246,6 +250,8 @@ void salesMenu(){
     }
 }
 
+//===================================================================================================================================================
+
 //sub function definitions of item menu
 
 void addItem() {
@@ -253,30 +259,32 @@ void addItem() {
     struct itemfile item;
     printf("\n Enter Item Code: ");
     scanf("%d", &item.item_code);
-    
-    printf("\n Enter the Item Name: ");
-    scanf("%s", item.item_name); 
-    
-    printf("\n Enter the Item Price: ");
-    scanf("%f", &item.it_price);
-    
-    printf("\n Enter the Opening Stock: ");
-    scanf("%d", &item.it_os);
-    
-    item.it_cs = item.it_os;
-    if (CheckitemcodeName(item.item_code, item.item_name)) {
-        printf("\n Error: Item Code or Name already exists!");
+    if (CheckitemcodeName(item.item_code, "")) {
+        printf("\n Error: Item Code already exists!");
         return;
     }
+    printf("\n Enter the Item Name: ");
+    scanf(" %[^\n]", item.item_name);
+    if (CheckitemcodeName(0, item.item_name)) {
+        printf("\n Error: Item Name already exists!");
+        return;
+    }
+    printf("\n Enter the Item Price: ");
+    scanf("%f", &item.it_price);
+    printf("\n Enter the Opening Stock: ");
+    scanf("%d", &item.it_os);
+    item.it_cs = item.it_os;
+
     fp = fopen("itemfile.dat", "ab+");
     if (fp == NULL) {
         printf("\n Error opening the file..");
         return;
     }
     fwrite(&item, sizeof(item), 1, fp);
-    printf("\n Item added successfully!");
     fclose(fp);
+    printf("\n Item added successfully!");
 }
+
 void editItem(){
     FILE *fp;
     fp=fopen("itemfile.dat","rb+");
@@ -292,7 +300,7 @@ void editItem(){
         if (item.item_code==items_code){
             found=1;
             printf("\n Enter the new Item Name:");
-            scanf("%s",item.item_name);
+            scanf(" %[^\n]",item.item_name);
             printf("\n Enter the new Item Price:");
             scanf("%f",&item.it_price);
             printf("\n Enter the new Opening Stock:");
@@ -307,51 +315,40 @@ void editItem(){
     if (found==0){
         printf("\n Item with code %d not found.",items_code);
     }
-
 }
 
-void deleteItem(){
-    FILE *fp;
-    int item_code, found = 0;
 
+void deleteItem() {
+    FILE *fp, *temp_fp, *backup_fp;
+    struct itemfile item;
+    int item_code, found = 0;
     fp = fopen("itemfile.dat", "rb");
-    if(fp == NULL){
+    if (fp == NULL) {
         printf("\n Error opening the file..");
         return;
     }
-
-    printf("\n Enter the Item code to delete:");
+    printf("\n Enter the Item Code to delete: ");
     scanf("%d", &item_code);
-
-    FILE *temp_fp = fopen("temp.dat", "wb");
-    if(temp_fp == NULL){
-        printf("\n Error opening temp file..");
-        fclose(fp);
-        return;
-    }
-
-    struct itemfile item;
-
-    while(fread(&item, sizeof(item), 1, fp)){
-        if(item.item_code == item_code){
+    temp_fp = fopen("temp.dat", "wb");
+    backup_fp = fopen("itembackup.dat", "ab"); 
+    while (fread(&item, sizeof(item), 1, fp)) {
+        if (item.item_code == item_code) {
             found = 1;
-            printf("\n Item with code %d deleted successfully!", item_code);
-            continue;  
+            fwrite(&item, sizeof(item), 1, backup_fp);
+            printf("\n Item %d deleted successfully and backed up!", item_code);
+            continue;
         }
+
         fwrite(&item, sizeof(item), 1, temp_fp);
     }
-
     fclose(fp);
     fclose(temp_fp);
+    fclose(backup_fp);
 
-    if(found == 0){
-        printf("\n Item with code %d not found.", item_code);
-        remove("temp.dat");
-    } 
-    else {
-        remove("itemfile.dat");
-        rename("temp.dat", "itemfile.dat");
-    }
+    remove("itemfile.dat");
+    rename("temp.dat", "itemfile.dat");
+    if (!found)
+        printf("\n Item Code not found!\n");
 }
 
 
@@ -363,7 +360,6 @@ void viewItem(){
         printf("\n Error opening the file..");
         return;
     }
-    
     printf("\n------------------ Item List ------------------\n");
     printf("\n%-12s %-15s %-12s %-15s %-15s\n", 
            "Item Code", "Item Name", "Item Price", "Opening Stock", "Closing Stock");
@@ -376,55 +372,63 @@ void viewItem(){
     fclose(fp);
 }
 
+//=======================================================================================================================================================
+
 //sub function definitions of Purchase file menu
 
-void addPurchaseItem(){
+void addPurchaseItem() {
 
     FILE *fp;
     struct purchasefile pur;
-
-    printf("\n Enter the Product Code:");
-    scanf("%d",&pur.p_code);
-
-    if (checkProductCode(pur.p_code) == 0){
+    printf("\n Enter the Product Code: ");
+    scanf("%d", &pur.p_code);
+    if (checkProductCode(pur.p_code) == 0) {
         printf("\n ERROR: Product Code does not exist in Item File!");
         printf("\n Purchase Cancelled.\n");
-        return;  
-    }
-    fp=fopen("purchasefile.dat","ab+");
-    if (fp==NULL){
-        printf("\n Error opening the file..");
         return;
     }
-    printf("\n Enter the Purchase Number:");
-    scanf("%d",&pur.p_no);
-    if (CheckPurchaseNumber(pur.p_no==0))
-    {
+    fp = fopen("purchasefile.dat", "ab+");
+    if (fp == NULL) {
+        printf("\n Error opening purchase file!");
+        return;
+    }
+    printf("\n Enter the Purchase Number: ");
+    scanf("%d", &pur.p_no);
+    if (CheckPurchaseNumber(pur.p_no) == 1) {
         printf("\n ERROR: Purchase Number already exists!");
         fclose(fp);
         return;
     }
-    printf("\n Enter the purchase date (in DD-MM-YYYY):");
-    scanf("%s",pur.p_date);
-    printf("\n Enter the Client Code:");
-    scanf("%d",&pur.c_code);
-    printf("\n Enter the client Name:");
+    printf("\n Enter the purchase date (DD-MM-YYYY): ");
+    scanf("%s", pur.p_date);
+    printf("\n Enter the Client Code: ");
+    scanf("%d", &pur.c_code);
+    printf("\n Enter the Client Name: ");
     scanf(" %[^\n]", pur.c_name);
-    printf("\n Enter the Product Quantity:");
-    scanf("%d",&pur.p_qty);
-    printf("\n Enter the product Price:");
-    scanf("%f",&pur.p_price);
+    do {
+        printf("\n Enter the Product Quantity: ");
+        scanf("%d", &pur.p_qty);
+
+        if (pur.p_qty <= 0)
+            printf("Quantity must be greater than 0!\n");
+
+    } while (pur.p_qty <= 0);
+    printf("\n Enter the Product Price: ");
+    scanf("%f", &pur.p_price);
     pur.p_amt = pur.p_qty * pur.p_price;
     fwrite(&pur, sizeof(pur), 1, fp);
     fclose(fp);
+    updateItemPrice(pur.p_code, pur.p_price);  
     printf("\n Purchase Item added successfully!");
-    int found = updateStock(pur.p_qty, pur.p_code);
-    if (found == 1){
+    int found = updateStock(pur.p_code, pur.p_qty);
+    if (found == 1) {
         printf("\n Stock Updated Successfully!\n");
     } else {
         printf("\n Warning: Stock update failed.\n");
     }
+    
 }
+
 
 void editPurchaseItem(){
     FILE *fp;
@@ -453,17 +457,55 @@ void editPurchaseItem(){
             pur.p_amt = pur.p_qty * pur.p_price;
             fseek(fp,-sizeof(pur),SEEK_CUR);
             fwrite(&pur,sizeof(pur),1,fp);
+             updateItemPrice(pur.p_code, pur.p_price);  
             printf("\n Purchase Item updated successfully!");
             break;
         }
     }
-    
+    if (foun==0){
+        printf("\n Purchase Item with number %d not found.",purchase_no);
+    }
 }
+
+void deletePurchaseItem() {
+    FILE *fp, *temp_fp, *backup_fp;
+    struct purchasefile pur;
+    int p_no, found = 0;
+    fp = fopen("purchasefile.dat", "rb");
+    if (fp == NULL) {
+        printf("\nError opening purchasefile.dat");
+        return;
+    }
+    printf("\nEnter the Purchase Number to delete: ");
+    scanf("%d", &p_no);
+    temp_fp = fopen("temp.dat", "wb");
+    backup_fp = fopen("purchasebackup.dat", "ab"); 
+    while (fread(&pur, sizeof(pur), 1, fp)) {
+        if (pur.p_no == p_no) {
+            found = 1;
+            fwrite(&pur, sizeof(pur), 1, backup_fp);
+            updateStock(pur.p_code, -pur.p_qty);
+
+            printf("\nPurchase deleted. Stock updated.\n");
+            continue;  
+        }
+        fwrite(&pur, sizeof(pur), 1, temp_fp);
+    }
+    fclose(fp);
+    fclose(temp_fp);
+    fclose(backup_fp);
+    remove("purchasefile.dat");
+    rename("temp.dat", "purchasefile.dat");
+    if (!found)
+        printf("\nPurchase Number not found!\n");
+    else
+        printf("\nBackup saved in purchasebackup.dat\n");
+}
+
 
 void viewPurchaseItem() {
     FILE *fp;
     struct purchasefile pur;
-
     fp = fopen("purchasefile.dat", "rb");
     if (fp == NULL) {
         printf("\n Error opening the file..\n");
@@ -482,79 +524,179 @@ void viewPurchaseItem() {
     fclose(fp);
 }
 
+//=============================================================================================================================================================================================================
+
 //sub function definitions of sales file menu
 
-void addSalesItem(){
+void addSalesItem() {
     FILE *fp;
     struct salesfile sales;
     float price;
     fp = fopen("salesfile.dat", "ab+");
-    
-    if (fp == NULL){
-        printf("\n Error opening the file..");
+    if (fp == NULL) {
+        printf("\nError opening salesfile.dat");
         return;
     }
-
-    printf("\n Enter the Bill Number:");
+    printf("\nEnter Bill Number: ");
     scanf("%d", &sales.b_no);
-
-    if (CheckBillNumber(sales.b_no) == 1){
-        printf("\n ERROR: Bill Number already exists!");
+    if (CheckBillNumber(sales.b_no) == 1) {
+        printf("\nERROR: Bill Number already exists!");
         fclose(fp);
         return;
     }
-
-    printf("\n Enter the Bill Date (DD-MM-YYYY):");
+    printf("\nEnter Bill Date (DD-MM-YYYY): ");
     scanf("%s", sales.b_date);
-
-    printf("\n Enter the Product Code:");
+    printf("\nEnter Product Code: ");
     scanf("%d", &sales.p_code);
-
-    if (checkProductCode(sales.p_code) == 0){
-        printf("\n ERROR: Product Code does not exist!");
-        printf("\n Sales Cancelled.\n");
+    if (checkProductCode(sales.p_code) == 0) {
+        printf("\nERROR: Product Code does not exist!");
         fclose(fp);
         return;
     }
-
-    if (RetrievePrice(sales.p_code, &price) == 0){
-        printf("\n ERROR: Unable to retrieve product price!");
+    if (RetrievePrice(sales.p_code, &price) == 0) {
+        printf("\nERROR: Could not retrieve price!");
         fclose(fp);
         return;
     }
-
-    printf("\n Product Price Retrieved Automatically: %.2f", price);
-    sales.b_rate = price;     
-
-    printf("\n Enter the Product Quantity:");
+    printf("\nProduct Price: %.2f", price);
+    sales.b_rate = price;
+    printf("\nEnter Quantity: ");
     scanf("%d", &sales.b_qty);
-
-    if (CheckProductQuantity(sales.p_code, sales.b_qty) == 0){
-        printf("\n ERROR: Insufficient stock OR stock is zero!");
-        printf("\n Sales Cancelled.\n");
+    if (CheckProductQuantity(sales.p_code, sales.b_qty) == 0) {
+        printf("\nERROR: Insufficient stock!");
         fclose(fp);
         return;
     }
-
-    printf("\n Enter the Product Tax in percentage:");
+    printf("\nEnter Tax Percentage: ");
     scanf("%f", &sales.b_tax);
-
-    sales.b_amt = (sales.b_qty * sales.b_rate) + 
+    sales.b_amt = (sales.b_qty * sales.b_rate) +
                   ((sales.b_qty * sales.b_rate) * (sales.b_tax / 100));
-
     fwrite(&sales, sizeof(sales), 1, fp);
     fclose(fp);
+    printf("\nSales Item Added Successfully!");
+    updateStock(sales.p_code, -sales.b_qty);
+    printf("\nStock Updated Successfully!\n");
+}
 
-    printf("\n Sales Item added successfully!");
 
-    UpdateStockAfterSale(sales.p_code, sales.b_qty);
+void editSalesItem() {
+    FILE *fp;
+    struct salesfile sales;
+    int bill_no, found = 0;
+    float price;
+    fp = fopen("salesfile.dat", "rb+");
+    if (fp == NULL) {
+        printf("\nError opening salesfile.dat");
+        return;
+    }
+    printf("\nEnter Bill Number to Edit: ");
+    scanf("%d", &bill_no);
+    while (fread(&sales, sizeof(sales), 1, fp)) {
+
+        //checking if the enetred and saved bill no. is correct or not 
+
+        if (sales.b_no == bill_no) {
+            found = 1;
+
+            printf("\n---- Existing Sales Details ----");
+            printf("\nBill No: %d", sales.b_no);
+            printf("\nDate   : %s", sales.b_date);
+            printf("\nCode   : %d", sales.p_code);
+            printf("\nQty    : %d", sales.b_qty);
+            printf("\nRate   : %.2f", sales.b_rate);
+            printf("\nTax    : %.2f", sales.b_tax);
+            printf("\nAmount : %.2f", sales.b_amt);
+
+            // like when we add sales item it would decrease the stock so we edit the sales file we have change the stock to orginal ( by adding the sales product quanitity to the item quantity)
+            updateStock(sales.p_code, sales.b_qty);
+            printf("\n\nEnter New Bill Date (DD-MM-YYYY): ");
+            scanf("%s", sales.b_date);
+
+            printf("\nEnter New Product Code: ");
+            scanf("%d", &sales.p_code);
+
+            //we have to check the productcode is present in the item file
+            if (checkProductCode(sales.p_code) == 0) {
+                printf("\nERROR: Product code does not exist!");
+                fclose(fp);
+                return;
+            }
+
+            // automatically retrive the price of the product according to the entered prodcut price
+            if (RetrievePrice(sales.p_code, &price) == 0) {
+                printf("\nERROR getting price!");
+                fclose(fp);
+                return;
+            }
+            sales.b_rate = price;
+            printf("\nPrice Retrieved: %.2f", price);
+            printf("\nEnter New Quantity: ");
+            scanf("%d", &sales.b_qty);
+
+            // check the entered item has the stock for sales
+
+            if (CheckProductQuantity(sales.p_code, sales.b_qty) == 0) {
+                printf("\nERROR: Insufficient stock!");
+                fclose(fp);
+                return;
+            }
+
+            printf("\nEnter New Tax Percentage: ");
+            scanf("%f", &sales.b_tax);
+            sales.b_amt = (sales.b_qty * sales.b_rate) +
+                          ((sales.b_qty * sales.b_rate) * (sales.b_tax / 100));
+
+            fseek(fp, -sizeof(sales), SEEK_CUR);
+            fwrite(&sales, sizeof(sales), 1, fp);
+
+            //Reduce stock for new quantity
+            updateStock(sales.p_code, -sales.b_qty);
+            printf("\nSales Record Updated Successfully!");
+            printf("\nStock Updated!\n");
+            fclose(fp);
+            return;
+        }
+    }
+
+    fclose(fp);
+    if (!found)
+        printf("\nBill Number not found!");
+}
+
+void deleteSalesItem() {
+    FILE *fp, *temp_fp;
+    struct salesfile sales;
+    int b_no, found = 0;
+    fp = fopen("salesfile.dat", "rb");
+    if (fp == NULL) {
+        printf("\nError opening salesfile.dat");
+        return;
+    }
+    printf("\nEnter the Bill Number to delete: ");
+    scanf("%d", &b_no);
+    temp_fp = fopen("temp.dat", "wb");
+    while (fread(&sales, sizeof(sales), 1, fp)) {
+
+        if (sales.b_no == b_no) {
+            found = 1;
+            updateStock(sales.p_code, sales.b_qty);
+            printf("\nSale deleted. Stock updated.\n");
+            continue;
+        }
+        fwrite(&sales, sizeof(sales), 1, temp_fp);
+    }
+    fclose(fp);
+    fclose(temp_fp);
+    remove("salesfile.dat");
+    rename("temp.dat", "salesfile.dat");
+    if (!found)
+        printf("\nBill Number not found!\n");
 }
 
 
 void viewSalesItem() {
     FILE *fp;
     struct salesfile sales;
-
     fp = fopen("salesfile.dat", "rb");
     if (fp == NULL) {
         printf("\n Error opening the file..\n");
@@ -566,13 +708,11 @@ void viewSalesItem() {
            "Quantity", "Rate", "Tax", "Amount");
 
     printf("-------------------------------------------------------------------------------\n");
-
     while (fread(&sales, sizeof(sales), 1, fp)) {
         printf("%-15d %-15s %-15d %-12d %-12.2f %-10.2f %-12.2f\n",
                sales.b_no, sales.b_date, sales.p_code,
                sales.b_qty, sales.b_rate, sales.b_tax, sales.b_amt);
     }
-
     fclose(fp);
 }
 
@@ -603,29 +743,34 @@ int checkProductCode(int p_code){
 
 // we also need to update the closing stock in itemfile after adding purchase item
 
-int updateStock(int quantity, int p_code){
-    FILE *fp, *temp_fp;
+int updateStock(int p_code, int quantity) {
+    FILE *fp;
     struct itemfile item;
-    int found=0;
-    fp=fopen("itemfile.dat","rb");
-    temp_fp=fopen("temp.dat","wb");
-    if (fp==NULL || temp_fp==NULL){
-        printf("\n Error opening the file..");
+    int found = 0;
+
+    fp = fopen("itemfile.dat", "rb+"); 
+    if (fp == NULL) {
+        printf("\nError opening itemfile.dat");
         return 0;
     }
-    while (fread(&item,sizeof(item),1,fp)){
-        if (item.item_code==p_code){
-            item.it_cs += quantity;
-            found=1;
+    while (fread(&item, sizeof(item), 1, fp)) {
+        if (item.item_code == p_code) {
+            item.it_cs += quantity;   
+            if (item.it_cs < 0) {
+                item.it_cs = 0;     
+            }
+            fseek(fp, -sizeof(item), SEEK_CUR); 
+            fwrite(&item, sizeof(item), 1, fp);  
+
+            found = 1;
+            break;
         }
-        fwrite(&item,sizeof(item),1,temp_fp);
     }
+
     fclose(fp);
-    fclose(temp_fp);
-    remove("itemfile.dat");
-    rename("temp.dat","itemfile.dat");
     return found;
 }
+
 
 // we must ensure that no duplicated item code or item name should be added to the file so that it should be more reliable
 
@@ -690,6 +835,8 @@ int CheckBillNumber(int b_no){
     return found;
 }
 
+// when billing if dont enter the right price it will be complicated .. so we have to retrieve the price from itemfile based on product code
+
 int RetrievePrice(int p_code, float *price){
     FILE *fp;
     struct itemfile item;
@@ -709,6 +856,8 @@ int RetrievePrice(int p_code, float *price){
     return 0;
 }
 
+//function to check whether the available is sufficient for selling or not
+
 int CheckProductQuantity(int p_code, int quantity){
     FILE *fp;
     struct itemfile item;
@@ -727,20 +876,25 @@ int CheckProductQuantity(int p_code, int quantity){
     return 0;
 }
 
-// Function to update the stock after a sale has been made
-void UpdateStockAfterSale(int p_code, int qty){
+
+
+int updateItemPrice(int p_code, float new_price) {
     FILE *fp;
     struct itemfile item;
+    int found = 0;
 
     fp = fopen("itemfile.dat", "rb+");
-    if(fp == NULL){
-        printf("\n Error opening item file...");
-        return;
+    if (fp == NULL) {
+        printf("\nError opening itemfile.dat");
+        return 0;
     }
 
-    while(fread(&item, sizeof(item), 1, fp)){
-        if(item.item_code == p_code){
-            item.it_cs -= qty;   // reduce closing stock
+    while (fread(&item, sizeof(item), 1, fp)) {
+        if (item.item_code == p_code) {
+            found = 1;
+
+            item.it_price = new_price;   // 🔥 update price only
+
             fseek(fp, -sizeof(item), SEEK_CUR);
             fwrite(&item, sizeof(item), 1, fp);
             break;
@@ -748,5 +902,8 @@ void UpdateStockAfterSale(int p_code, int qty){
     }
 
     fclose(fp);
+    return found;
 }
+
+
 //************************************************************************************************************************************************* */
